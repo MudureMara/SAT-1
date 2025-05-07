@@ -1,54 +1,67 @@
 def read_dimacs_file(filename):
-    """
-    Citește fișierul CNF și extrage clauzele
-    """
+   
     clauses = []
     with open(filename, 'r') as file:
         for line in file:
             if line.startswith('c') or line.startswith('p'):
-                continue  # Ignorăm comentariile și linia de tip 'p'
+                continue 
             clause = [int(x) for x in line.strip().split() if x != '0']  # Eliminăm 0
             if clause:
-                clauses.append(set(clause))  # Folosim set pentru a elimina duplicate
+                clauses.append(clause)
     return clauses
 
-def resolve(ci, cj):
-    """
-    Aplica rezolutia pe două clauze pentru a obține noi clauze
-    """
-    resolvents = []
-    for literal in ci:
-        if -literal in cj:
-            new_clause = (ci - {literal}) | (cj - {-literal})
-            resolvents.append(frozenset(new_clause))
-    return resolvents
 
-def resolution_solver(clauses):
-    """
-    Rezolvă satisfiabilitatea folosind algoritmul de rezoluție
-    """
-    clauses = set(frozenset(clause) for clause in clauses)
-    new = set()
-
+def unit_propagation(clauses):
+    
+    assignments = {}
     while True:
-        pairs = [(ci, cj) for ci in clauses for cj in clauses if ci != cj]
-        for (ci, cj) in pairs:
-            resolvents = resolve(ci, cj)
-            for resolvent in resolvents:
-                if not resolvent:
-                    return False  # Clauza goală => formula este nesatisfiabilă
-                new.add(resolvent)
+        unit_clauses = [clause for clause in clauses if len(clause) == 1]  
+        if not unit_clauses:
+            break
 
-        if new.issubset(clauses):
-            return True  # Nu se mai pot adăuga clauze noi => formula este satisfiabilă
+        for clause in unit_clauses:
+            unit_literal = clause[0]
+            if unit_literal not in assignments:
+                assignments[unit_literal] = True
+            elif unit_literal in assignments and assignments[unit_literal] is False:
+                return None, False  
+            clauses = [c for c in clauses if unit_literal not in c]  
+            clauses = [list(filter(lambda x: x != -unit_literal, c)) for c in clauses] 
+    return clauses, assignments
 
-        clauses |= new  # Adăugăm noile clauze la setul de clauze
+
+def davis_putnam(clauses, variables):
+    
+    clauses, assignments = unit_propagation(clauses)
+    if clauses == []:
+        return True  
+    if any(len(clause) == 0 for clause in clauses):
+        return False 
+
+    if not variables:
+        return True  
+
+    var = variables.pop()
+
+   
+    new_clauses = [list(filter(lambda x: x != var, clause)) for clause in clauses]
+    if davis_putnam(new_clauses, variables.copy()):
+        return True
+
+    
+    new_clauses = [list(filter(lambda x: x != -var, clause)) for clause in clauses]
+    if davis_putnam(new_clauses, variables.copy()):
+        return True
+
+    return False  
+
 
 if __name__ == '__main__':
-    # Specifică calea corectă către fișierul CNF
-    input_file = r'D:\sat\rezolutie.py\clause_set.cnf'  # Calea corectă către fișier
-    clauses = read_dimacs_file(input_file)  # Citește clauzele din fișier
-    satisfiable = resolution_solver(clauses)  # Verifică satisfiabilitatea formulei
+    input_file = r'D:\sat\rezolutie.py\dpll\clause_set.cnf'  
+    clauses = read_dimacs_file(input_file)  
+    variables = set(abs(literal) for clause in clauses for literal in clause)  
+
+    satisfiable = davis_putnam(clauses, list(variables))
 
     if satisfiable:
         print("Formula este satisfiabilă.")
